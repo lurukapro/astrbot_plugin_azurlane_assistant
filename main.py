@@ -5,7 +5,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 import astrbot.api.message_components as Comp
 
-@register("azurlane_assistant", "Developer", "碧蓝航线助手", "1.7.0")
+@register("azurlane_assistant", "Developer", "碧蓝航线助手", "1.8.1")
 class AzurLaneAssistant(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -33,108 +33,128 @@ class AzurLaneAssistant(Star):
             "长弓计划": ("官网28服-长弓计划", "128"), "裁决协议": ("官网29服-裁决协议", "129")
         }
         self.headers = {
-            'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254173b) XWEB/19027",
-            'xweb_xhr': "1",
+            'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781",
             'content-type': "application/json",
             'referer': "https://servicewechat.com/wx3ee6dc49667f3444/26/page-frame.html",
         }
 
-    def _resolve_server(self, name: str):
-        if name.isdigit():
+    def _resolve_server(self, name):
+        """核心修复：强制转为字符串，规避 AttributeError"""
+        if name is None: return None, None
+        name_str = str(name).strip()
+        if name_str.isdigit():
             for k, v in self.server_map.items():
-                if v[1] == name: return v
-            return f"ID:{name}", name
+                if v[1] == name_str: return v
+            return f"ID:{name_str}", name_str
         for key, val in self.server_map.items():
-            if name in key: return val
+            if name_str in key: return val
         return None, None
 
     @filter.command("azs")
-    async def az_server_query(self, event: AstrMessageEvent, server_input: str):
-        full_name, s_id = self._resolve_server(server_input)
-        if full_name: yield event.plain_result(f"✅ 查询结果：\n{full_name} {s_id}")
-        else: yield event.plain_result(f"❌ 未找到服务器。")
+    async def az_server_query(self, event: AstrMessageEvent, name: str):
+        """【独立指令】服务器查询：azs <名称/ID>"""
+        full_name, s_id = self._resolve_server(name)
+        if full_name:
+            yield event.plain_result(f"✅ 查询结果：\n{full_name} {s_id}")
+        else:
+            yield event.plain_result(f"❌ 未识别服务器: {name}")
 
     @filter.command("az")
-    async def az_user(self, event: AstrMessageEvent, role_id: str, server_name: str = None):
-        if server_name is None:
-            full_name, s_id = self._resolve_server(role_id)
-            if full_name: yield event.plain_result(f"{full_name} {s_id}")
-            else: yield event.plain_result(f"❌ 请输入: az <UID> <服务器> 或 azs <名称>")
+    async def az_user(self, event: AstrMessageEvent, arg1: str = "help", arg2: str = None):
+        """【独立指令】用户查询或帮助"""
+        # 情况1：az 或 az help
+        if arg1.lower() == "help":
+            help_msg = [
+                "⚓ 碧蓝航线助手帮助",
+                "━━━━━━━━━━━━━━",
+                "👤 查玩家: az <UID> <服务器>",
+                "🏗️ 查建造: azb <UID> <服务器> [数量]",
+                "🌐 查服ID: azs <服务器名>",
+                "━━━━━━━━━━━━━━",
+                "💡 服务器可直接输数字ID（如 120）"
+            ]
+            yield event.plain_result("\n".join(help_msg))
             return
 
-        full_name, s_id = self._resolve_server(server_name)
-        if not s_id: yield event.plain_result(f"❌ 未识别服务器: {server_name}"); return
+        # 情况2：az <UID> <服务器>
+        if arg2 is None:
+            yield event.plain_result("❌ 缺少服务器参数！\n格式: az <UID> <服务器>\n或输入 az help")
+            return
+
+        role_id, server_input = str(arg1), arg2
+        full_name, s_id = self._resolve_server(server_input)
+
+        if not s_id:
+            yield event.plain_result(f"❌ 未识别服务器: {server_input}"); return
             
         url = "https://le3-api.game.bilibili.com/x/api/azurlane/get/user_detail"
         params = {'role_id': role_id, 'server_id': s_id, 'game_id': "182"}
-        headers = self.headers.copy(); headers['Cookie'] = self.config.get("cookie", "")
+        headers = self.headers.copy()
+        headers['Cookie'] = self.config.get("cookie", "")
+        
         async with httpx.AsyncClient() as client:
             try:
                 resp = await client.get(url, params=params, headers=headers)
                 data = resp.json()
-            except Exception: yield event.plain_result("❌ 网络请求失败"); return
+            except Exception as e:
+                yield event.plain_result(f"❌ 网络错误: {str(e)}"); return
 
-        if data.get("code") != 0: yield event.plain_result(f"❌ 错误: {data.get('message')}"); return
+        if data.get("code") != 0:
+            yield event.plain_result(f"❌ 接口提示: {data.get('message')}"); return
             
         d = data['data']; u = d['user_info']; s = d['statistics']; p = d['progress_tracking']; c = d['combat_overview']
-        res = [f"⚓指挥官: {u['nickname']} (Lv.{u['level']})", f"🌐服务器: {u['server']} (UID:{u['uid']})", f"📊收集率: {s['collection_rate']} | 进度: {s['mainline_progress']}", f"🏢舰队: {u['guild_name'] or '无'}", "━━━━━━━━━━━━━━", f"💰物资: {s['coins_current']} | ⛽石油: {s['oil_current']}", f"🍱存粮: {s['food_current']} | 🤺演习: {c['exercise']['today_remaining']}/10", "━━━━━━━━━━━━━━", f"📡委托: 🏃{p['commissions']['in_progress']} | ✅{p['commissions']['completed']} | 💤{p['commissions']['idle']}", f"🧪科研: 🏃{p['research']['in_progress']} | ✅{p['research']['completed']} | 💤{p['research']['idle']}"]
+        res = [
+            f"⚓指挥官: {u['nickname']} (Lv.{u['level']})",
+            f"🌐服务器: {u['server']} (UID:{u['uid']})",
+            f"📊收集率: {s['collection_rate']} | 进度: {s['mainline_progress']}",
+            f"🏢舰队: {u['guild_name'] or '无'}",
+            "━━━━━━━━━━━━━━",
+            f"💰物资: {s['coins_current']} | ⛽石油: {s['oil_current']}",
+            f"🍱存粮: {s['food_current']} | 🤺演习: {c['exercise']['today_remaining']}/10",
+            "━━━━━━━━━━━━━━",
+            f"📡委托: 🏃{p['commissions']['in_progress']} | ✅{p['commissions']['completed']} | 💤{p['commissions']['idle']}",
+            f"🧪科研: 🏃{p['research']['in_progress']} | ✅{p['research']['completed']} | 💤{p['research']['idle']}"
+        ]
         todo = [ch['daily_challenge_name'] for ch in c['daily_challenges'] if ch['daily_challenge_remaining_attempts'] > 0]
         res.append(f"⚔️待办副本: {', '.join(todo)}" if todo else "⚔️今日副本已全部完成！")
         yield event.plain_result("\n".join(res))
 
     @filter.command("azb")
-    async def az_build(self, event: AstrMessageEvent, role_id: str, server_name: str, count: int = 10):
-        full_name, s_id = self._resolve_server(server_name)
-        if not s_id: yield event.plain_result(f"❌ 未识别服务器: {server_name}"); return
+    async def az_build(self, event: AstrMessageEvent, uid: str, server: str, count: int = 10):
+        """【独立指令】建造记录查询"""
+        full_name, s_id = self._resolve_server(server)
+        if not s_id:
+            yield event.plain_result(f"❌ 未识别服务器: {server}"); return
 
         target_count = min(count, 500)
-        page_size = 50 
-        all_records = []
-        nickname, uid, s_name, total_in_api = "", "", "", 0
+        page_size, all_records = 50, []
         headers = self.headers.copy(); headers['Cookie'] = self.config.get("cookie", "")
         url = "https://le3-api.game.bilibili.com/x/api/azurlane/get/build_record"
 
         async with httpx.AsyncClient() as client:
             for page in range(1, (target_count // page_size) + 2):
                 if len(all_records) >= target_count: break
-                current_p_size = min(page_size, target_count - len(all_records))
-                if current_p_size <= 0: break
-                params = {'role_id': role_id, 'server_id': s_id, 'page_num': str(page), 'page_size': str(current_p_size)}
+                ps = min(page_size, target_count - len(all_records))
                 try:
-                    resp = await client.get(url, params=params, headers=headers)
+                    resp = await client.get(url, params={'role_id': str(uid), 'server_id': s_id, 'page_num': str(page), 'page_size': str(ps)}, headers=headers)
                     data = resp.json()
                     if data.get("code") != 0: break
                     d = data['data']
-                    nickname, uid, s_name = d['nickname'], d['uid'], d['serverName']
-                    total_in_api = d['buildRecords']['total_count']
-                    page_data = d['buildRecords']['data']
-                    if not page_data: break
-                    all_records.extend(page_data)
-                except Exception: break
+                    nickname, real_uid, s_name, total_api = d['nickname'], d['uid'], d['serverName'], d['buildRecords']['total_count']
+                    if not d['buildRecords']['data']: break
+                    all_records.extend(d['buildRecords']['data'])
+                except: break
 
-        if not all_records: yield event.plain_result("📭 未查询到记录。"); return
+        if not all_records:
+            yield event.plain_result("📭 未查到记录。"); return
 
-        header_text = (f"🏗️ 碧蓝航线建造查询\n👤 指挥官: {nickname} (UID: {uid})\n🌐 服务器: {s_name}\n📊 记录总数: {total_in_api}\n📈 本次拉取: {len(all_records)} 条\n━━━━━━━━━━━━━━")
-        record_lines = [f"• {r['roleName']} [{r['taskName']}]" for r in all_records]
+        head = f"🏗️ 建造查询\n👤 {nickname} ({real_uid})\n🌐 {s_name}\n📊 共{total_api}条，拉取{len(all_records)}条\n━━━━━━━━━━━━━━"
+        lines = [f"• {r['roleName']} [{r['taskName']}]" for r in all_records]
 
-        # 逻辑：20条以内直接发，超过20条使用 Node 发送合并转发消息
-        if len(record_lines) <= 20:
-            yield event.plain_result(header_text + "\n" + "\n".join(record_lines))
+        if len(lines) <= 20:
+            yield event.plain_result(head + "\n" + "\n".join(lines))
         else:
-            # 根据文档使用 Comp.Node
-            # 如果是 QQ 平台，uin 可以传机器人自己的 ID 或 0，name 为显示的名字
-            nodes = []
-            
-            # 第一条：头部信息
-            nodes.append(Comp.Node(uin=event.get_self_id(), name="碧蓝航线助手", content=[Comp.Plain(header_text)]))
-            
-            # 分段将建造记录放入 Node，每 100 条放一个 Node 节点
-            for i in range(0, len(record_lines), 100):
-                chunk = record_lines[i:i+100]
-                nodes.append(Comp.Node(
-                    uin=event.get_self_id(), 
-                    name="建造记录详情", 
-                    content=[Comp.Plain("\n".join(chunk))]
-                ))
-            
+            nodes = [Comp.Node(uin=event.get_self_id(), name="碧蓝助手", content=[Comp.Plain(head)])]
+            for i in range(0, len(lines), 100):
+                nodes.append(Comp.Node(uin=event.get_self_id(), name="记录详情", content=[Comp.Plain("\n".join(lines[i:i+100]))]))
             yield event.chain_result(nodes)
