@@ -71,7 +71,7 @@ class AzurLaneAssistant(Star):
                 "🏗️ 查建造: azb <UID> <服务器/ID> [数量]",
                 "🌐 查服ID: azs <服务器名/ID>",
                 "━━━━━━━━━━━━━━",
-                "💡 UID是游戏内UID，服务器可输（如 120、秋季旅行、秋季）"
+                "💡 建造列表上限500条，UID是游戏内UID，服务器可输（如 120、秋季旅行、秋季）"
             ]
             yield event.plain_result("\n".join(help_msg))
             return
