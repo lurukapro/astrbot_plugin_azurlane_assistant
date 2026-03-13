@@ -1,0 +1,7 @@
+name: azurlane_assistant
+desc: 碧蓝航线小程序助手，支持用户信息和建造记录查询。
+version: 1.0.0
+author: luruka_llk
+repo: ""
+tags:
+  - game
