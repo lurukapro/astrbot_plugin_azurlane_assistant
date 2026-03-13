@@ -5,7 +5,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 import astrbot.api.message_components as Comp
 
-@register("azurlane_assistant", "Developer", "碧蓝航线助手", "1.8.1")
+@register("azurlane_assistant", "luruka_llk", "碧蓝航线助手", "1.0.0")
 class AzurLaneAssistant(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -67,11 +67,11 @@ class AzurLaneAssistant(Star):
             help_msg = [
                 "⚓ 碧蓝航线助手帮助",
                 "━━━━━━━━━━━━━━",
-                "👤 查玩家: az <UID> <服务器>",
-                "🏗️ 查建造: azb <UID> <服务器> [数量]",
-                "🌐 查服ID: azs <服务器名>",
+                "👤 查玩家: az <UID> <服务器名/ID>",
+                "🏗️ 查建造: azb <UID> <服务器/ID> [数量]",
+                "🌐 查服ID: azs <服务器名/ID>",
                 "━━━━━━━━━━━━━━",
-                "💡 服务器可直接输数字ID（如 120）"
+                "💡 UID是游戏内UID，服务器可输（如 120、秋季旅行、秋季）"
             ]
             yield event.plain_result("\n".join(help_msg))
             return
