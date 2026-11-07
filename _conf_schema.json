@@ -1,8 +1,0 @@
-{
-  "cookie": {
-    "type": "string",
-    "description": "bilbiliCookie",
-    "default": "",
-    "hint": "选填。部分接口（如建造记录）可能需要 Cookie 才能获取数据。"
-  }
-}
