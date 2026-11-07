@@ -1,0 +1,40 @@
+{
+  "render_mode": {
+    "type": "string",
+    "description": "查询结果输出模式",
+    "default": "image",
+    "options": ["image", "text"],
+    "hint": "image=小程序同款 UI 卡片图，text=纯文本。渲染失败会自动回退文本。"
+  },
+  "render_strategy": {
+    "type": "string",
+    "description": "图片渲染方式",
+    "default": "auto",
+    "options": ["auto", "local", "remote"],
+    "hint": "auto=本地playwright优先,失败走远程t2i; local=仅本地(需装playwright); remote=仅远程"
+  },
+  "request_timeout": {
+    "type": "int",
+    "description": "接口请求超时（秒）",
+    "default": 15,
+    "hint": "单次请求的最长等待时间。"
+  },
+  "cooldown_seconds": {
+    "type": "int",
+    "description": "查询冷却（秒）",
+    "default": 5,
+    "hint": "同一用户两次查询的最小间隔，设为 0 关闭冷却。"
+  },
+  "cache_seconds": {
+    "type": "int",
+    "description": "玩家数据缓存（秒）",
+    "default": 60,
+    "hint": "相同 UID+服务器的查询在缓存期内直接返回结果，设为 0 关闭缓存。建造记录固定缓存5分钟。"
+  },
+  "max_build_count": {
+    "type": "int",
+    "description": "建造记录单次最大拉取条数",
+    "default": 500,
+    "hint": "限制单次查询拉取的建造记录上限（接口最多保留最近500条）。"
+  }
+}
